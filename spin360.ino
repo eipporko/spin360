@@ -51,7 +51,7 @@ volatile short numOfPics = 0;
 volatile short setupIndex = 1;
 volatile short delayCamera = 0;
 volatile short motorSpeed = 0;
- 
+
 Encoder_t enc;
 Button_t button;
 ProgramState_t stateProgram = MENU;
@@ -210,7 +210,6 @@ void mainMenu() {
   ButtonState_t buttonState = buttonCheckState();
   switch (buttonState) {
     case OK:
-      enc.ptrVar = NULL;
       if (numOfPics > 0)
         changeStateProgram(GETTING_PICS);
       break;
@@ -247,6 +246,8 @@ void printMainMenu() {
 
 
 void takePictures() {
+  enc.ptrVar = NULL;
+
   double stepsByPic;
   double errorByMovement = modf((double)STEPS / numOfPics, &stepsByPic);
   double stepperAccumError = 0;
