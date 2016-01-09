@@ -30,18 +30,29 @@
 #define DELAY_CAMERA 1000
 #define MOTOR_SPEED 60
 
-const int buttonPin = 2;
-const int relePin = 3;
+//Pins
+const int encAPin = 2;
+const int encBPin = 3;
 const int coilAPin = 4;
 const int coilBPin = 9;
-const int knobPin = A0;
+const int buttonPin = 10;
+const int relePin = 11;
 
-int buttonState = 0;
-int lastButtonState = 0;
-int numOfPics = -1;
-int lastNumOfPics = -1;
+int buttonState = LOW;
+int lastButtonState = LOW;
+volatile int numOfPics = 0;
 
-typedef enum {NA, MENU, PROGRESSION} state;
+struct Encoder {
+  volatile int sigAVal;
+  volatile int sigBVal;
+  volatile int* ptrVar = NULL;
+  int lowerVal;
+  int higherVal;
+} encoder_t;
+
+Encoder enc;
+
+typedef enum {NA, MENU, SETTINGS, PROGRESSION} state;
 state stateProgram = NA;
 
 Stepper platform(STEPS,5,6,7,8);
@@ -56,18 +67,62 @@ void setup() {
   lcd.backlight();
 
   //setting pins
-  pinMode(buttonPin, INPUT);
-  pinMode(relePin, OUTPUT);
+  pinMode(encAPin, OUTPUT);
+  pinMode(encBPin, OUTPUT);
   pinMode(coilAPin, OUTPUT);
   pinMode(coilBPin, OUTPUT);
+  pinMode(buttonPin, INPUT);
+  pinMode(relePin, OUTPUT);
 
   //init outputs
   digitalWrite(relePin, LOW);
   digitalWrite(coilAPin, LOW);
   digitalWrite(coilBPin, LOW);
 
+  //init encoder variables
+  enc.sigAVal = digitalRead(encAPin);
+  enc.sigBVal = digitalRead(encBPin);
+
+  attachInterrupt(digitalPinToInterrupt(encAPin), interruptEncAVal, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(encBPin), interruptEncBVal, CHANGE);
+
   //setting speed platform
   platform.setSpeed(MOTOR_SPEED);
+}
+
+
+void interruptEncAVal() {
+  enc.sigAVal = digitalRead(encAPin);
+
+  if (enc.ptrVar) {
+    if (enc.sigAVal != enc.sigBVal)
+      //clockwise
+      *enc.ptrVar = (*enc.ptrVar<enc.higherVal)?*enc.ptrVar++:enc.higherVal;
+    else
+      //counterclockwise
+      *enc.ptrVar = (*enc.ptrVar>enc.lowerVal)?*enc.ptrVar--:enc.lowerVal;
+  }
+}
+
+
+void interruptEncBVal() {
+  enc.sigBVal = digitalRead(encBPin);
+
+  if (enc.ptrVar) {
+    if (enc.sigBVal != enc.sigAVal)
+      //counterclockwise
+      *enc.ptrVar = (*enc.ptrVar>enc.lowerVal)?*enc.ptrVar--:enc.lowerVal;
+    else
+      //clockwise
+      *enc.ptrVar = (*enc.ptrVar<enc.higherVal)?*enc.ptrVar++:enc.higherVal;
+  }
+}
+
+
+void encoderPtrVal(volatile int* ptr, int low, int high) {
+  enc.lowerVal = low;
+  enc.higherVal = high;
+  enc.ptrVar = ptr;
 }
 
 
@@ -81,32 +136,28 @@ bool checkButton() {
     return false;
 }
 
-void mainMenu() {
-  //get number of pics to take
-  lastNumOfPics = numOfPics;
-  numOfPics = analogRead(knobPin);
-  numOfPics = map(numOfPics, 0, 1023, 0, STEPS);
 
+void mainMenu() {
+
+  //print main menu
   if (stateProgram != MENU) {
     stateProgram = MENU;
     lcd.clear();
     lcd.setCursor(0,0);
-    lcd.print("MENU PRINCIPAL");
+    lcd.print("MAIN MENU");
     lcd.setCursor(0,1);
-    lcd.print("Cuantas fotos?: ");
-    lcd.setCursor(13,3);
-    lcd.print("INICIAR");
+    lcd.print("Resolution: ");
+    lcd.setCursor(16,3);
+    lcd.print("INIT");
   }
 
-  //print main menu
-  if (lastNumOfPics != numOfPics) {
-    lcd.setCursor(16,1);
-    lcd.print(numOfPics);
+  //print numOfPics
+  lcd.setCursor(12,1);
+  lcd.print(numOfPics);
 
-    //clear dust
-    for (int i=0; i < 3 - String(numOfPics).length(); i++)
-      lcd.print(' ');
-  }
+  //clear dust
+  for (int i=0; i < 3 - String(numOfPics).length(); i++)
+    lcd.print(' ');
 }
 
 
@@ -162,9 +213,9 @@ void printProgressionInfo(int percent) {
     stateProgram = PROGRESSION;
     lcd.clear();
     lcd.setCursor(0,0);
-    lcd.print("OBTENIENDO IMAGENES");
-    lcd.setCursor(12,3);
-    lcd.print("CANCELAR");
+    lcd.print("GETTING PICS");
+    lcd.setCursor(14,3);
+    lcd.print("CANCEL");
   }
 
   //print progress information
@@ -176,13 +227,15 @@ void printProgressionInfo(int percent) {
   lcd.print('%');
 }
 
+
 void loop() {
+  encoderPtrVal(&numOfPics, 0, STEPS);
   mainMenu();
 
   if (checkButton()){
+    enc.ptrVar = NULL;
     if (numOfPics > 0) {
       takePictures();
-      numOfPics = -1;
-      }
+    }
   }
 }
