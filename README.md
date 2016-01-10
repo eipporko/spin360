@@ -1,4 +1,4 @@
-# Spin 360 with Arduino
+# Spin 360
 
 Get a ' _360 photography _' - also known as ' _360 spin_ ', ' _360 view_ ', ' _Spin Photography_ ' or ' _Product Spin_ ' - with a photographic technique by which a series of photos are taken of an object as it rotates one full revolution.
 
