@@ -29,7 +29,7 @@
 #include <Wire.h>
 #include <math.h>
 
-#define BUTTON_DEBOUNCE_DELAY 50
+#define BUTTON_DEBOUNCE_DELAY 5
 #define BUTTON_CANCEL_DELAY 500
 #define STEPS 200
 #define DELAY_CAMERA 1000
@@ -47,7 +47,7 @@ const int coilBPin = 9;
 const int buttonPin = 10;
 const int relePin = 11;
 
-volatile short numOfPics = 0;
+volatile short numOfPics = 40;
 volatile short setupIndex = 1;
 volatile short delayCamera = 0;
 volatile short motorSpeed = 0;
@@ -140,20 +140,21 @@ bool buttonIsPressed() {
 
 
 ButtonState_t buttonCheckState() {
-  unsigned long startTime = millis();
-
-  if ( buttonIsPressed() )
+  if ( buttonIsPressed() ) {
+    
+    unsigned long startTime = millis();
     while (digitalRead(buttonPin) == HIGH ) {
       if (millis() - startTime > BUTTON_CANCEL_DELAY)
         return CANCEL;
     }
 
-  unsigned long totalTime = millis() - startTime;
+    unsigned long totalTime = millis() - startTime;
 
-  if (totalTime > BUTTON_DEBOUNCE_DELAY)
-    return OK;
-  else
-    return UNPRESSED;
+    if (totalTime > BUTTON_DEBOUNCE_DELAY)
+      return OK;
+  }
+
+  return UNPRESSED;
 }
 
 
@@ -182,11 +183,19 @@ void printSetupMenu() {
     lcd.clear();
     lcd.setCursor(0, 0);
     lcd.print("SETUP MENU");
-    lcd.setCursor(1,1);
+    lcd.setCursor(1, 1);
     lcd.print("Camera Delay:");
-    lcd.setCursor(1,2);
+    lcd.setCursor(1, 2);
     lcd.print("Motor Speed:");
-    lcd.print("MENU");
+    lcd.setCursor(0, 3);
+    lcd.print("MAIN");
+
+    //Get variables from EEPROM
+    short variable = 0;
+    EEPROM.get(eeAddressDelayCamera, variable);
+    delayCamera = variable;
+    EEPROM.get(eeAddressMotorSpeed, variable);
+    motorSpeed = variable;
   }
 
   //print cursor
@@ -194,11 +203,10 @@ void printSetupMenu() {
   lcd.print(">");
 
   //print values
-  lcd.setCursor(14, 1);
-  EEPROM.get(eeAddressDelayCamera, delayCamera);
+  short variable = 0;
+  lcd.setCursor(15, 1);
   lcd.print(delayCamera);
-  lcd.setCursor(14 ,2);
-  EEPROM.get(eeAddressMotorSpeed, motorSpeed);
+  lcd.setCursor(15 , 2);
   lcd.print(motorSpeed);
 }
 
@@ -302,11 +310,12 @@ void printProgressionInfo(int percent) {
     lcd.clear();
     lcd.setCursor(0, 0);
     lcd.print("GETTING PICS");
-    lcd.setCursor(14, 3);
+    lcd.setCursor(0, 3);
     lcd.print("CANCEL");
   }
 
   //print progress information
+  lcd.setCursor(0, 1);
   for (int i = 0; i <= percentBar; i++)
     lcd.print(char(219));
 
