@@ -16,6 +16,8 @@ The purpose of **_Spin 360_** is to automate the process of obtaining the pictur
 
 ## Dependencies
 
+> LiquidCrystal_I2C only is compatible with the Arduino 1.6.5 IDE Release, don't work in newest releases.
+
 **_Spin 360_** needs in addition to the libraries which come installed with the [Arduino IDE](https://www.arduino.cc/en/Main/Software), another library for working with the LCD Display connected to I2C:
 *  [LiquidCrystal_I2C](https://github.com/marcoschwartz/LiquidCrystal_I2C) by @marcoschwartz ,you can find it with the _Library Manager_ of the  _Arduino IDE_
 
