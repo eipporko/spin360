@@ -65,8 +65,8 @@ void setup() {
   lcd.backlight();
 
   //setting pins
-  pinMode(encAPin, OUTPUT);
-  pinMode(encBPin, OUTPUT);
+  pinMode(encAPin, INPUT);
+  pinMode(encBPin, INPUT);
   pinMode(coilAPin, OUTPUT);
   pinMode(coilBPin, OUTPUT);
   pinMode(buttonPin, INPUT);
