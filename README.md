@@ -8,9 +8,9 @@ The purpose of **_Spin 360_** is to automate the process of obtaining the pictur
 
 ![Main Menu](figures/main_menu.png)
 
-** Click Button: ** _Right Option_  
-** Hold Button: ** _Left Option_  
-** Turn Enconder: ** _Change value / Navigate_
+**Click Button:** _Right Option_  
+**Hold Button:** _Left Option_  
+**Turn Enconder:** _Change value / Navigate_
 
 ## Hardware Requirements
 
