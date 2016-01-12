@@ -4,6 +4,14 @@ Get a ' _360 photography _' - also known as ' _360 spin_ ', ' _360 view_ ', ' _S
 
 The purpose of **_Spin 360_** is to automate the process of obtaining the pictures, rotating a platform and shooting a camera in each platform position. In this way you will only need to choose the number of pictures that you desire and this project will do all the work.
 
+## How it works
+
+![Main Menu](figures/main_menu.png)
+
+** Click Button: ** _Right Option_  
+** Hold Button: ** _Left Option_  
+** Turn Enconder: ** _Change value / Navigate_
+
 ## Hardware Requirements
 
 * Arduino

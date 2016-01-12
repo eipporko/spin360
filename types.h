@@ -41,7 +41,12 @@ typedef struct Button {
   int lastVal = LOW;
 } Button_t;
 
-typedef enum ProgramState {NA, MENU, SETUP, GETTING_PICS} ProgramState_t;
+typedef enum ProgramState {MENU, SETTINGS, MODIFY_SETTINGS, GETTING_PICS, ERROR_SETTINGS} ProgramState_t;
+
+typedef struct Param {
+  int address;
+  volatile short val;
+} Param_t;
 
 #endif //__TYPES_H__
 

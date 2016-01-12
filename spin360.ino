@@ -29,15 +29,10 @@
 #include <Wire.h>
 #include <math.h>
 
+#define ERROR_MESSAGE_DELAY 1500
 #define BUTTON_DEBOUNCE_DELAY 5
 #define BUTTON_CANCEL_DELAY 500
 #define STEPS 200
-#define DELAY_CAMERA 1000
-#define MOTOR_SPEED 60
-
-//EEPROM
-int eeAddressDelayCamera = 0;
-int eeAddressMotorSpeed = sizeof(short);
 
 //Pins
 const int encAPin = 2;
@@ -47,11 +42,12 @@ const int coilBPin = 9;
 const int buttonPin = 10;
 const int relePin = 11;
 
-volatile short numOfPics = 40;
-volatile short setupIndex = 1;
-volatile short delayCamera = 0;
-volatile short motorSpeed = 0;
-
+volatile short numOfPics = 1;
+volatile short setupIndex = 0;
+Param_t param[2] = {
+  {.address = 0, .val = 0},             //0: delay_camera
+  {.address = sizeof(short), .val = 0}  //1: motor_speed
+};
 Encoder_t enc;
 Button_t button;
 ProgramState_t stateProgram = MENU;
@@ -88,8 +84,33 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(encAPin), interruptEncAVal, CHANGE);
   attachInterrupt(digitalPinToInterrupt(encBPin), interruptEncBVal, CHANGE);
 
-  //setting speed platform
-  platform.setSpeed(MOTOR_SPEED);
+  //Get Params
+  getParams();
+}
+
+
+int numOfParams() {
+  return sizeof(param) / sizeof(Param_t);
+}
+
+
+void getParams() {
+
+  for (int i = 0; i < numOfParams(); i++) {
+    short variable = 0;
+    EEPROM.get(param[i].address, variable);
+    param[i].val = variable;
+  }
+
+  platform.setSpeed(param[1].val);
+}
+
+
+bool validateSettings() {
+  if (param[0].val < 0 || param[1].val <= 0)
+    return false;
+  else
+    return true;
 }
 
 
@@ -158,14 +179,58 @@ ButtonState_t buttonCheckState() {
 }
 
 
-void setupMenu() {
-  encoderPtrVal(&setupIndex, 1, 2);
-  printSetupMenu();
+void modifySettingsMenu() {
+  encoderPtrVal(&param[setupIndex].val, 0, 9999);
+  printModifySettingsMenu();
 
   ButtonState_t buttonState = buttonCheckState();
   switch (buttonState) {
     case OK:
-      changeStateProgram(MENU);
+      EEPROM.put(param[setupIndex].address, param[setupIndex].val);
+      changeStateProgram(SETTINGS);
+      break;
+    case CANCEL:
+      changeStateProgram(SETTINGS);
+    default:
+      break;
+  }
+}
+
+
+void printModifySettingsMenu() {
+  //print menu
+  if (newStateProgram) {
+    newStateProgram = false;
+    lcd.setCursor(0, 3);
+    lcd.print("CANCEL");
+    lcd.setCursor(14, 3);
+    lcd.print("  SAVE");
+  }
+
+  //print cursor
+  lcd.setCursor(0, setupIndex + 1);
+  lcd.print(' ');
+  lcd.setCursor(15, setupIndex + 1);
+  lcd.print(">");
+
+  //print values
+  lcd.setCursor(16, setupIndex + 1);
+  lcd.print(param[setupIndex].val);
+
+  //clear dust
+  for (int i = 0; i < 4 - String(param[setupIndex].val).length(); i++)
+    lcd.print(' ');
+}
+
+
+void settingsMenu() {
+  encoderPtrVal(&setupIndex, 0, numOfParams() - 1);
+  printSettingsMenu();
+
+  ButtonState_t buttonState = buttonCheckState();
+  switch (buttonState) {
+    case OK:
+      changeStateProgram(MODIFY_SETTINGS);
       break;
     case CANCEL:
       changeStateProgram(MENU);
@@ -175,54 +240,54 @@ void setupMenu() {
 }
 
 
-void printSetupMenu() {
+void printSettingsMenu() {
 
   //print menu
   if (newStateProgram) {
     newStateProgram = false;
     lcd.clear();
     lcd.setCursor(0, 0);
-    lcd.print("SETUP MENU");
+    lcd.print("SETTINGS MENU");
     lcd.setCursor(1, 1);
     lcd.print("Camera Delay:");
     lcd.setCursor(1, 2);
     lcd.print("Motor Speed:");
     lcd.setCursor(0, 3);
-    lcd.print("MAIN");
+    lcd.print("RETURN");
+    lcd.setCursor(14, 3);
+    lcd.print("MODIFY");
 
-    //Get variables from EEPROM
-    short variable = 0;
-    EEPROM.get(eeAddressDelayCamera, variable);
-    delayCamera = variable;
-    EEPROM.get(eeAddressMotorSpeed, variable);
-    motorSpeed = variable;
+    //Reload params from EEPROM
+    getParams();
   }
 
   //print cursor
-  lcd.setCursor(0, setupIndex);
+  lcd.setCursor(0, setupIndex + 1);
   lcd.print(">");
 
   //print values
   short variable = 0;
-  lcd.setCursor(15, 1);
-  lcd.print(delayCamera);
-  lcd.setCursor(15 , 2);
-  lcd.print(motorSpeed);
+  lcd.setCursor(16, 1);
+  lcd.print(param[0].val);
+  lcd.setCursor(16 , 2);
+  lcd.print(param[1].val);
 }
 
 
 void mainMenu() {
-  encoderPtrVal(&numOfPics, 0, STEPS);
+  encoderPtrVal(&numOfPics, 1, STEPS);
   printMainMenu();
 
   ButtonState_t buttonState = buttonCheckState();
   switch (buttonState) {
     case OK:
-      if (numOfPics > 0)
+      if (validateSettings())
         changeStateProgram(GETTING_PICS);
+      else
+        changeStateProgram(ERROR_SETTINGS);
       break;
     case CANCEL:
-      changeStateProgram(SETUP);
+      changeStateProgram(SETTINGS);
     default:
       break;
   }
@@ -240,7 +305,9 @@ void printMainMenu() {
     lcd.setCursor(0, 1);
     lcd.print("Resolution:");
     lcd.setCursor(0, 3);
-    lcd.print("SETUP           INIT");
+    lcd.print("SETTINGS");
+    lcd.setCursor(16, 3);
+    lcd.print("INIT");
   }
 
   //print numOfPics
@@ -271,7 +338,7 @@ void takePictures() {
 
     //shoot camera
     digitalWrite(relePin, HIGH);
-    delay(DELAY_CAMERA);
+    delay(param[0].val);
     digitalWrite(relePin, LOW);
 
     //move platform
@@ -330,12 +397,30 @@ void changeStateProgram(ProgramState_t newState) {
   newStateProgram = true;
 }
 
+void errorSettingsMessage() {
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("ERROR!");
+  lcd.setCursor(0, 1);
+  lcd.print("   Check out your   ");
+  lcd.setCursor(0,2);
+  lcd.print("  Spin360 settings  ");
+  
+  delay(ERROR_MESSAGE_DELAY);
+  changeStateProgram(MENU);
+}
 
 void loop() {
 
   switch (stateProgram) {
-    case SETUP:
-      setupMenu();
+    case ERROR_SETTINGS:
+      errorSettingsMessage();
+      break;
+    case MODIFY_SETTINGS:
+      modifySettingsMenu();
+      break;
+    case SETTINGS:
+      settingsMenu();
       break;
     case GETTING_PICS:
       takePictures();
@@ -347,4 +432,3 @@ void loop() {
   }
 
 }
-
