@@ -63,6 +63,7 @@ void setup() {
   //init lcd
   lcd.init();
   lcd.backlight();
+  lcd.noCursor();
 
   //setting pins
   pinMode(encAPin, INPUT);
