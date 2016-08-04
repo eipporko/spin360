@@ -26,13 +26,11 @@
 
 #include <Arduino.h>
 
-typedef struct Encoder {
-  volatile int sigAVal;
-  volatile int sigBVal;
+typedef struct Variable {
   volatile short* ptrVar = NULL;
   int lowerVal;
   int higherVal;
-} Encoder_t;
+} Variable_t;
 
 typedef enum ButtonState {UNPRESSED, OK, CANCEL} ButtonState_t;
 

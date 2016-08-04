@@ -26,6 +26,7 @@
 #include <EEPROM.h>
 #include <Stepper.h>
 #include <LiquidCrystal_I2C.h>
+#include <Encoder.h>
 #include <Wire.h>
 #include <math.h>
 
@@ -35,12 +36,12 @@
 #define STEPS 200
 
 //Pins
-const int encAPin = 2;
-const int encBPin = 3;
-const int coilAPin = 4;
-const int coilBPin = 9;
-const int buttonPin = 10;
-const int relePin = 11;
+const int ROTARY_A_PIN = 0;
+const int ROTARY_B_PIN = 1;
+const int ROTARY_SW_PIN = 4;
+const int COIL_A_PIN = 5;
+const int COIL_B_PIN = 10;
+const int RELAY_PIN = 16;
 
 volatile short numOfPics = 1;
 volatile short setupIndex = 0;
@@ -48,12 +49,16 @@ Param_t param[2] = {
   {.address = 0, .val = 0},             //0: delay_camera
   {.address = sizeof(short), .val = 0}  //1: motor_speed
 };
-Encoder_t enc;
+
+Variable_t var;
+long oldPosition  = 0;
+
+Encoder enc(ROTARY_A_PIN, ROTARY_B_PIN);
 Button_t button;
 ProgramState_t stateProgram = MENU;
 bool newStateProgram = true;
 
-Stepper platform(STEPS, 5, 6, 7, 8);
+Stepper platform(STEPS, 6, 7, 8, 9);
 LiquidCrystal_I2C lcd(0x27, 20, 4);
 
 void setup() {
@@ -66,24 +71,15 @@ void setup() {
   lcd.noCursor();
 
   //setting pins
-  pinMode(encAPin, INPUT);
-  pinMode(encBPin, INPUT);
-  pinMode(coilAPin, OUTPUT);
-  pinMode(coilBPin, OUTPUT);
-  pinMode(buttonPin, INPUT);
-  pinMode(relePin, OUTPUT);
+  pinMode(COIL_A_PIN, OUTPUT);
+  pinMode(COIL_B_PIN, OUTPUT);
+  pinMode(ROTARY_SW_PIN, INPUT);
+  pinMode(RELAY_PIN, OUTPUT);
 
   //init outputs
-  digitalWrite(relePin, LOW);
-  digitalWrite(coilAPin, LOW);
-  digitalWrite(coilBPin, LOW);
-
-  //init encoder variables
-  enc.sigAVal = digitalRead(encAPin);
-  enc.sigBVal = digitalRead(encBPin);
-
-  attachInterrupt(digitalPinToInterrupt(encAPin), interruptEncAVal, CHANGE);
-  attachInterrupt(digitalPinToInterrupt(encBPin), interruptEncBVal, CHANGE);
+  digitalWrite(RELAY_PIN, HIGH);
+  digitalWrite(COIL_A_PIN, LOW);
+  digitalWrite(COIL_B_PIN, LOW);
 
   //Get Params
   getParams();
@@ -114,47 +110,32 @@ bool validateSettings() {
     return true;
 }
 
-
-void interruptEncAVal() {
-  enc.sigAVal = digitalRead(encAPin);
-
-  if (enc.ptrVar) {
-    if (enc.sigAVal != enc.sigBVal)
-      //clockwise
-      *enc.ptrVar = (*enc.ptrVar < enc.higherVal) ? *enc.ptrVar++ : enc.higherVal;
-    else
-      //counterclockwise
-      *enc.ptrVar = (*enc.ptrVar > enc.lowerVal) ? *enc.ptrVar-- : enc.lowerVal;
-  }
-}
-
-
-void interruptEncBVal() {
-  enc.sigBVal = digitalRead(encBPin);
-
-  if (enc.ptrVar) {
-    if (enc.sigBVal != enc.sigAVal)
-      //counterclockwise
-      *enc.ptrVar = (*enc.ptrVar > enc.lowerVal) ? *enc.ptrVar-- : enc.lowerVal;
-    else
-      //clockwise
-      *enc.ptrVar = (*enc.ptrVar < enc.higherVal) ? *enc.ptrVar++ : enc.higherVal;
-  }
-}
-
-
 void encoderPtrVal(volatile short* ptr, int low, int high) {
-  enc.lowerVal = low;
-  enc.higherVal = high;
-  enc.ptrVar = ptr;
+  var.lowerVal = low;
+  var.higherVal = high;
+  var.ptrVar = ptr;
 }
 
+void updatePtrVal() {
+  long newPosition = enc.read();
+  
+  long i = (newPosition - oldPosition);
+  if (i/4 != 0) { 
+    *var.ptrVar += (i/4);
+    if (*var.ptrVar > var.higherVal)
+      *var.ptrVar = var.higherVal;
+    else if (*var.ptrVar < var.lowerVal)
+      *var.ptrVar = var.lowerVal;
+    oldPosition = newPosition;
+  }
+  
+}
 
 bool buttonIsPressed() {
   button.lastVal = button.val;
-  button.val = digitalRead(buttonPin);
+  button.val = digitalRead(ROTARY_SW_PIN);
 
-  if (button.val == HIGH && button.lastVal == LOW)
+  if (button.val == LOW && button.lastVal == HIGH)
     return true;
   else
     return false;
@@ -163,17 +144,20 @@ bool buttonIsPressed() {
 
 ButtonState_t buttonCheckState() {
   if ( buttonIsPressed() ) {
-
     unsigned long startTime = millis();
-    while (digitalRead(buttonPin) == HIGH ) {
-      if (millis() - startTime > BUTTON_CANCEL_DELAY)
+    while (digitalRead(ROTARY_SW_PIN) == LOW ) {
+      if (millis() - startTime > BUTTON_CANCEL_DELAY) {
+        Serial.println("CANCEL");
         return CANCEL;
+      }
     }
 
     unsigned long totalTime = millis() - startTime;
 
-    if (totalTime > BUTTON_DEBOUNCE_DELAY)
+    if (totalTime > BUTTON_DEBOUNCE_DELAY) {
+      Serial.println("OK");
       return OK;
+    }
   }
 
   return UNPRESSED;
@@ -182,6 +166,7 @@ ButtonState_t buttonCheckState() {
 
 void modifySettingsMenu() {
   encoderPtrVal(&param[setupIndex].val, 0, 9999);
+  updatePtrVal();
   printModifySettingsMenu();
 
   ButtonState_t buttonState = buttonCheckState();
@@ -226,6 +211,7 @@ void printModifySettingsMenu() {
 
 void settingsMenu() {
   encoderPtrVal(&setupIndex, 0, numOfParams() - 1);
+  updatePtrVal();
   printSettingsMenu();
 
   ButtonState_t buttonState = buttonCheckState();
@@ -263,6 +249,14 @@ void printSettingsMenu() {
   }
 
   //print cursor
+  int dustPosition = 1;
+  if (setupIndex + 1 == 1)
+    dustPosition = 2;
+  else
+    dustPosition = 1;
+ 
+  lcd.setCursor(0, dustPosition);
+  lcd.print(" ");
   lcd.setCursor(0, setupIndex + 1);
   lcd.print(">");
 
@@ -277,6 +271,8 @@ void printSettingsMenu() {
 
 void mainMenu() {
   encoderPtrVal(&numOfPics, 1, STEPS);
+  updatePtrVal();
+
   printMainMenu();
 
   ButtonState_t buttonState = buttonCheckState();
@@ -322,25 +318,23 @@ void printMainMenu() {
 
 
 void takePictures() {
-  enc.ptrVar = NULL;
-
   double stepsByPic;
   double errorByMovement = modf((double)STEPS / numOfPics, &stepsByPic);
   double stepperAccumError = 0;
   int stepCounter = 0;
 
   //enable coilA & coilB
-  digitalWrite(coilAPin, HIGH);
-  digitalWrite(coilBPin, HIGH);
+  digitalWrite(COIL_A_PIN, HIGH);
+  digitalWrite(COIL_B_PIN, HIGH);
 
   for (int i = 0; i < numOfPics ; i++) {
     //print info
     printProgressionInfo(stepCounter);
 
     //shoot camera
-    digitalWrite(relePin, HIGH);
+    digitalWrite(RELAY_PIN, LOW);
     delay(param[0].val);
-    digitalWrite(relePin, LOW);
+    digitalWrite(RELAY_PIN, HIGH);
 
     //move platform
     stepperAccumError += errorByMovement;
@@ -361,8 +355,8 @@ void takePictures() {
   platform.step(STEPS - stepCounter);
 
   //disable coilA & coilB
-  digitalWrite(coilAPin, LOW);
-  digitalWrite(coilBPin, LOW);
+  digitalWrite(COIL_A_PIN, LOW);
+  digitalWrite(COIL_B_PIN, LOW);
 
   changeStateProgram(MENU);
 }
@@ -404,9 +398,9 @@ void errorSettingsMessage() {
   lcd.print("ERROR!");
   lcd.setCursor(0, 1);
   lcd.print("   Check out your   ");
-  lcd.setCursor(0,2);
+  lcd.setCursor(0, 2);
   lcd.print("  Spin360 settings  ");
-  
+
   delay(ERROR_MESSAGE_DELAY);
   changeStateProgram(MENU);
 }
