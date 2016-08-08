@@ -25,12 +25,7 @@
 #define __TYPES_H__
 
 #include <Arduino.h>
-
-typedef struct Variable {
-  volatile short* ptrVar = NULL;
-  int lowerVal;
-  int higherVal;
-} Variable_t;
+#include <EEPROM.h>
 
 typedef enum ButtonState {UNPRESSED, OK, CANCEL} ButtonState_t;
 
@@ -43,7 +38,82 @@ typedef enum ProgramState {MENU, SETTINGS, MODIFY_SETTINGS, GETTING_PICS, ERROR_
 
 typedef struct Param {
   int address;
-  volatile short val;
+  String descriptor;
+  volatile short data;
+  int minVal;
+  int maxVal;
+
+  Param(String descriptor, int address, int data, int minVal, int maxVal):
+    descriptor(descriptor),
+    address(address),
+    data(data),
+    minVal(minVal),
+    maxVal(maxVal)
+  {};
+
+  Param(String descriptor, int data, int minVal, int maxVal):
+    Param(descriptor, -1, data, minVal, maxVal)
+  {};
+  
+  Param(int data, int minVal, int maxVal):
+    Param("", -1, data, minVal, maxVal)
+  {};
+
+  setMinVal(int newMinVal) {
+    minVal = newMinVal;
+  }
+
+  setMaxVal(int newMaxVal) {
+    maxVal = newMaxVal;
+  }
+    
+  Param& operator+(const int i) {
+    if (i > 0)
+      (data + i <= maxVal ) ? data += i : data = maxVal;
+    else
+      (data + i >= minVal ) ? data += i : data = minVal;
+      
+    return *this;
+  }
+
+  Param& operator+=(const int i) {
+    Param result = *this + i;
+    return result;
+  }
+  
+  Param& operator++() {
+    (data < maxVal) ? data++ : data = maxVal;
+    return *this;
+  }
+
+  Param operator++(int) {
+    Param result(*this);
+    ++(*this);
+    return result;
+  }
+
+  Param& operator--(){
+    (data > minVal) ? data-- : data = minVal;
+    return *this;
+  }
+
+  Param operator--(int) {
+    Param result(*this);
+    --(*this);
+    return result;
+  }
+
+  void save() {
+    if (address != -1)
+      EEPROM.put(address, data);
+  }
+
+  template< typename T > T &get(T &t) {
+    if (address != -1)
+      EEPROM.get(address, t);
+    return t;
+  }
+  
 } Param_t;
 
 #endif //__TYPES_H__

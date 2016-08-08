@@ -23,7 +23,6 @@
 
 #include "types.h"
 
-#include <EEPROM.h>
 #include <Stepper.h>
 #include <LiquidCrystal_I2C.h>
 #include <Encoder.h>
@@ -33,7 +32,8 @@
 #define ERROR_MESSAGE_DELAY 1500
 #define BUTTON_DEBOUNCE_DELAY 5
 #define BUTTON_CANCEL_DELAY 500
-#define STEPS 200
+
+int numOfParams();
 
 //Pins
 const int ROTARY_A_PIN = 0;
@@ -43,22 +43,27 @@ const int COIL_A_PIN = 5;
 const int COIL_B_PIN = 10;
 const int RELAY_PIN = 16;
 
-volatile short numOfPics = 1;
-volatile short setupIndex = 0;
-Param_t param[2] = {
-  {.address = 0, .val = 0},             //0: delay_camera
-  {.address = sizeof(short), .val = 0}  //1: motor_speed
+Param_t param[3] = {
+  Param_t{"Shot Delay: ", 0, 0, 0, 9999},
+  Param_t{"Motor Speed:", sizeof(short), 0, 0, 9999},
+  Param_t{"Motor Steps:", sizeof(short)*2, 0, 0, 9999}
 };
 
-Variable_t var;
+Param_t numOfPics("Resolution:", 0, 0, 0);
+Param_t setupIndex(0, 0, numOfParams()-1);
+int setupWindow[2] = {0, 1};
+
+
 long oldPosition  = 0;
 
 Encoder enc(ROTARY_A_PIN, ROTARY_B_PIN);
 Button_t button;
+Param_t *ptrParam;
+
 ProgramState_t stateProgram = MENU;
 bool newStateProgram = true;
 
-Stepper platform(STEPS, 6, 7, 8, 9);
+Stepper *platform = NULL;
 LiquidCrystal_I2C lcd(0x27, 20, 4);
 
 void setup() {
@@ -95,40 +100,57 @@ void getParams() {
 
   for (int i = 0; i < numOfParams(); i++) {
     short variable = 0;
-    EEPROM.get(param[i].address, variable);
-    param[i].val = variable;
+    param[i].get(variable);
+    param[i].data = variable;
   }
 
-  platform.setSpeed(param[1].val);
+  platform = new Stepper(param[2].data, 6, 7, 8, 9);
+  platform->setSpeed(param[1].data);
+
+  if (param[2].data > 0) {
+    numOfPics.data = 1;
+    numOfPics.setMinVal(1);
+    numOfPics.setMaxVal(param[2].data);
+  }
 }
 
 
 bool validateSettings() {
-  if (param[0].val < 0 || param[1].val <= 0)
+  if (param[0].data < 0 || param[1].data <= 0 || param[2].data <= 0)
     return false;
   else
     return true;
 }
 
-void encoderPtrVal(volatile short* ptr, int low, int high) {
-  var.lowerVal = low;
-  var.higherVal = high;
-  var.ptrVar = ptr;
+void updatePtrVal() {
+
+  if (ptrParam != NULL) {
+    long newPosition = enc.read();
+  
+    long i = (newPosition - oldPosition);
+    if (i/4 != 0) { 
+      *ptrParam += (i/4);
+      oldPosition = newPosition;
+    }
+  }
 }
 
-void updatePtrVal() {
-  long newPosition = enc.read();
-  
-  long i = (newPosition - oldPosition);
-  if (i/4 != 0) { 
-    *var.ptrVar += (i/4);
-    if (*var.ptrVar > var.higherVal)
-      *var.ptrVar = var.higherVal;
-    else if (*var.ptrVar < var.lowerVal)
-      *var.ptrVar = var.lowerVal;
-    oldPosition = newPosition;
+void updateSetupWindow() {
+  int index = setupIndex.data;
+  int lastIndexParam;
+  int windowLenght = sizeof(setupWindow)/sizeof(int);
+  for (int i = 0; i < windowLenght; i++) {
+    lastIndexParam = setupWindow[i];
+    if (setupWindow[i] == setupIndex.data)
+      return;
   }
   
+  int offset = (abs(index - setupWindow[0]) < abs(index - lastIndexParam)) ? 
+    index - setupWindow[0] : index - lastIndexParam;
+
+  for (int i = 0; i < windowLenght; i++) {
+    setupWindow[i] += offset; 
+  }
 }
 
 bool buttonIsPressed() {
@@ -147,7 +169,6 @@ ButtonState_t buttonCheckState() {
     unsigned long startTime = millis();
     while (digitalRead(ROTARY_SW_PIN) == LOW ) {
       if (millis() - startTime > BUTTON_CANCEL_DELAY) {
-        Serial.println("CANCEL");
         return CANCEL;
       }
     }
@@ -155,7 +176,6 @@ ButtonState_t buttonCheckState() {
     unsigned long totalTime = millis() - startTime;
 
     if (totalTime > BUTTON_DEBOUNCE_DELAY) {
-      Serial.println("OK");
       return OK;
     }
   }
@@ -165,14 +185,14 @@ ButtonState_t buttonCheckState() {
 
 
 void modifySettingsMenu() {
-  encoderPtrVal(&param[setupIndex].val, 0, 9999);
+  ptrParam = &param[setupIndex.data];
   updatePtrVal();
   printModifySettingsMenu();
 
   ButtonState_t buttonState = buttonCheckState();
   switch (buttonState) {
     case OK:
-      EEPROM.put(param[setupIndex].address, param[setupIndex].val);
+      param[setupIndex.data].save();
       changeStateProgram(SETTINGS);
       break;
     case CANCEL:
@@ -193,25 +213,34 @@ void printModifySettingsMenu() {
     lcd.print("  SAVE");
   }
 
+  int cursorPos = 0;
+  int windowLenght = sizeof(setupWindow)/sizeof(int);
+  for (int i = 0; i < windowLenght; i++) {
+    if (setupWindow[i] == setupIndex.data) {
+      cursorPos = i;
+    }
+  }
+  
   //print cursor
-  lcd.setCursor(0, setupIndex + 1);
+  lcd.setCursor(0, cursorPos + 1);
   lcd.print(' ');
-  lcd.setCursor(15, setupIndex + 1);
+  lcd.setCursor(15, cursorPos + 1);
   lcd.print(">");
 
   //print values
-  lcd.setCursor(16, setupIndex + 1);
-  lcd.print(param[setupIndex].val);
+  lcd.setCursor(16, cursorPos + 1);
+  lcd.print(param[setupWindow[cursorPos]].data);
 
   //clear dust
-  for (int i = 0; i < 4 - String(param[setupIndex].val).length(); i++)
+  for (int i = 0; i < 4 - String(param[setupIndex.data].data).length(); i++)
     lcd.print(' ');
 }
 
 
 void settingsMenu() {
-  encoderPtrVal(&setupIndex, 0, numOfParams() - 1);
+  ptrParam = &setupIndex;
   updatePtrVal();
+  updateSetupWindow();
   printSettingsMenu();
 
   ButtonState_t buttonState = buttonCheckState();
@@ -235,10 +264,6 @@ void printSettingsMenu() {
     lcd.clear();
     lcd.setCursor(0, 0);
     lcd.print("SETTINGS MENU");
-    lcd.setCursor(1, 1);
-    lcd.print("Camera Delay:");
-    lcd.setCursor(1, 2);
-    lcd.print("Motor Speed:");
     lcd.setCursor(0, 3);
     lcd.print("RETURN");
     lcd.setCursor(14, 3);
@@ -248,29 +273,42 @@ void printSettingsMenu() {
     getParams();
   }
 
+  int cursorPos = 0;
+  int windowLenght = sizeof(setupWindow)/sizeof(int);
+  for (int i = 0; i < windowLenght; i++) {
+    lcd.setCursor(1, i+1);
+    lcd.print(param[setupWindow[i]].descriptor);
+
+    lcd.setCursor(16, i+1);
+    lcd.print(param[setupWindow[i]].data);
+
+    //clear dust
+    int dustPositions = 4 - String(param[setupWindow[i]].data).length();
+    for (int i = 0; i < dustPositions; i++) {
+      lcd.print(' ');
+    }
+
+    if (setupWindow[i] == setupIndex.data) {
+      cursorPos = i;
+    }
+  }
+
   //print cursor
   int dustPosition = 1;
-  if (setupIndex + 1 == 1)
+  if (cursorPos == 0)
     dustPosition = 2;
   else
     dustPosition = 1;
  
   lcd.setCursor(0, dustPosition);
   lcd.print(" ");
-  lcd.setCursor(0, setupIndex + 1);
+  lcd.setCursor(0, cursorPos + 1);
   lcd.print(">");
-
-  //print values
-  short variable = 0;
-  lcd.setCursor(16, 1);
-  lcd.print(param[0].val);
-  lcd.setCursor(16 , 2);
-  lcd.print(param[1].val);
 }
 
 
 void mainMenu() {
-  encoderPtrVal(&numOfPics, 1, STEPS);
+  ptrParam = &numOfPics;
   updatePtrVal();
 
   printMainMenu();
@@ -300,7 +338,7 @@ void printMainMenu() {
     lcd.setCursor(0, 0);
     lcd.print("MAIN MENU");
     lcd.setCursor(0, 1);
-    lcd.print("Resolution:");
+    lcd.print(numOfPics.descriptor);
     lcd.setCursor(0, 3);
     lcd.print("SETTINGS");
     lcd.setCursor(16, 3);
@@ -309,17 +347,18 @@ void printMainMenu() {
 
   //print numOfPics
   lcd.setCursor(12, 1);
-  lcd.print(numOfPics);
+  lcd.print(numOfPics.data);
 
   //clear dust
-  for (int i = 0; i < 3 - String(numOfPics).length(); i++)
+  for (int i = 0; i < 3 - String(numOfPics.data).length(); i++)
     lcd.print(' ');
 }
 
 
 void takePictures() {
+  ptrParam = NULL;
   double stepsByPic;
-  double errorByMovement = modf((double)STEPS / numOfPics, &stepsByPic);
+  double errorByMovement = modf((double)param[2].data / numOfPics.data, &stepsByPic);
   double stepperAccumError = 0;
   int stepCounter = 0;
 
@@ -327,13 +366,13 @@ void takePictures() {
   digitalWrite(COIL_A_PIN, HIGH);
   digitalWrite(COIL_B_PIN, HIGH);
 
-  for (int i = 0; i < numOfPics ; i++) {
+  for (int i = 0; i < numOfPics.data ; i++) {
     //print info
     printProgressionInfo(stepCounter);
 
     //shoot camera
     digitalWrite(RELAY_PIN, LOW);
-    delay(param[0].val);
+    delay(param[0].data);
     digitalWrite(RELAY_PIN, HIGH);
 
     //move platform
@@ -343,7 +382,8 @@ void takePictures() {
       stepsByError = 1;
       stepperAccumError -= 1;
     }
-    platform.step(stepsByPic + stepsByError);
+    if (platform != NULL)
+      platform->step(stepsByPic + stepsByError);
     stepCounter += stepsByPic + stepsByError;
 
     //cancel operation
@@ -352,7 +392,8 @@ void takePictures() {
   }
 
   //return to origin
-  platform.step(STEPS - stepCounter);
+  if (platform != NULL)
+    platform->step(param[2].data - stepCounter);
 
   //disable coilA & coilB
   digitalWrite(COIL_A_PIN, LOW);
@@ -364,8 +405,8 @@ void takePictures() {
 
 void printProgressionInfo(int percent) {
   //compute
-  int percentBar = map(percent, 0, STEPS, -1, 20);
-  int percentNumber = map(percent, 0, STEPS, 0, 100);
+  int percentBar = map(percent, 0, param[2].data, -1, 20);
+  int percentNumber = map(percent, 0, param[2].data, 0, 100);
 
   if (newStateProgram) {
     newStateProgram = false;
