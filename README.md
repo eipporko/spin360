@@ -14,13 +14,14 @@ The purpose of **_Spin 360_** is to automate the process of obtaining the pictur
 
 ## Hardware Requirements
 
-* Arduino
+* Arduino Micro Pro
 * Bipolar Stepper Motor
 * L298N Motor Drive Controller
 * LCD 20x4 Display with I2C Serial Interface Board
-* Relay Module
-* Rotary Enconder
-* Switch
+* Rotary Enconder with Switch
+* 10k Ohm resistor x3
+* 1k Ohm resistor x2
+* 4N45 Optocoupler
 
 ## Dependencies
 
