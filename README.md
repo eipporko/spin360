@@ -30,7 +30,7 @@ The purpose of **_Spin 360_** is to automate the process of obtaining the pictur
 *  [LiquidCrystal_I2C](https://github.com/marcoschwartz/LiquidCrystal_I2C) by @marcoschwartz ,you can find it with the _Library Manager_ of the  _Arduino IDE_
 
 ## Arduino Schematic
-![Connection Scheme](figures/arduino_schematic.jpg)
+![Connection Scheme](figures/arduino_schematic.png)
 
 
 # Applications
