@@ -21,7 +21,7 @@ The purpose of **_Spin 360_** is to automate the process of obtaining the pictur
 * Rotary Enconder with Switch
 * 10k Ohm resistor x3
 * 1k Ohm resistor x2
-* 4N45 Optocoupler
+* 4N45 Optocoupler x2
 
 ## Dependencies
 
