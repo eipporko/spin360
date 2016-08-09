@@ -41,7 +41,8 @@ const int ROTARY_B_PIN = 1;
 const int ROTARY_SW_PIN = 4;
 const int COIL_A_PIN = 5;
 const int COIL_B_PIN = 10;
-const int RELAY_PIN = 16;
+const int FOCUS_PIN = 14;
+const int SHUTTER_PIN = 16;
 
 Param_t param[3] = {
   Param_t{"Shot Delay: ", 0, 0, 0, 9999},
@@ -79,10 +80,10 @@ void setup() {
   pinMode(COIL_A_PIN, OUTPUT);
   pinMode(COIL_B_PIN, OUTPUT);
   pinMode(ROTARY_SW_PIN, INPUT);
-  pinMode(RELAY_PIN, OUTPUT);
+  pinMode(SHUTTER_PIN, OUTPUT);
 
   //init outputs
-  digitalWrite(RELAY_PIN, HIGH);
+  digitalWrite(SHUTTER_PIN, HIGH);
   digitalWrite(COIL_A_PIN, LOW);
   digitalWrite(COIL_B_PIN, LOW);
 
@@ -371,9 +372,9 @@ void takePictures() {
     printProgressionInfo(stepCounter);
 
     //shoot camera
-    digitalWrite(RELAY_PIN, LOW);
+    digitalWrite(SHUTTER_PIN, LOW);
     delay(param[0].data);
-    digitalWrite(RELAY_PIN, HIGH);
+    digitalWrite(SHUTTER_PIN, HIGH);
 
     //move platform
     stepperAccumError += errorByMovement;
