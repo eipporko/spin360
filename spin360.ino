@@ -44,10 +44,11 @@ const int COIL_B_PIN = 10;
 const int FOCUS_PIN = 14;
 const int SHUTTER_PIN = 16;
 
-Param_t param[3] = {
-  Param_t{"Shot Delay: ", 0, 0, 0, 9999},
-  Param_t{"Motor Speed:", sizeof(short), 0, 0, 9999},
-  Param_t{"Motor Steps:", sizeof(short)*2, 0, 0, 9999}
+Param_t param[4] = {
+  Param_t{"Focus Delay:  ", 0, 0, 0, 9999},
+  Param_t{"Shutter Delay:", sizeof(short), 0, 0, 9999},
+  Param_t{"Motor Speed:  ", sizeof(short)*2, 0, 0, 9999},
+  Param_t{"Motor Steps:  ", sizeof(short)*3, 0, 0, 9999}
 };
 
 Param_t numOfPics("Resolution:", 0, 0, 0);
@@ -80,9 +81,11 @@ void setup() {
   pinMode(COIL_A_PIN, OUTPUT);
   pinMode(COIL_B_PIN, OUTPUT);
   pinMode(ROTARY_SW_PIN, INPUT);
+  pinMode(FOCUS_PIN, OUTPUT);
   pinMode(SHUTTER_PIN, OUTPUT);
 
   //init outputs
+  digitalWrite(FOCUS_PIN, HIGH);
   digitalWrite(SHUTTER_PIN, HIGH);
   digitalWrite(COIL_A_PIN, LOW);
   digitalWrite(COIL_B_PIN, LOW);
@@ -105,19 +108,19 @@ void getParams() {
     param[i].data = variable;
   }
 
-  platform = new Stepper(param[2].data, 6, 7, 8, 9);
-  platform->setSpeed(param[1].data);
+  platform = new Stepper(param[3].data, 6, 7, 8, 9);
+  platform->setSpeed(param[2].data);
 
-  if (param[2].data > 0) {
+  if (param[3].data > 0) {
     numOfPics.data = 1;
     numOfPics.setMinVal(1);
-    numOfPics.setMaxVal(param[2].data);
+    numOfPics.setMaxVal(param[3].data);
   }
 }
 
 
 bool validateSettings() {
-  if (param[0].data < 0 || param[1].data <= 0 || param[2].data <= 0)
+  if (param[0].data < 0 || param[1].data < 0 || param[2].data <= 0 || param[3].data <= 0)
     return false;
   else
     return true;
@@ -359,7 +362,7 @@ void printMainMenu() {
 void takePictures() {
   ptrParam = NULL;
   double stepsByPic;
-  double errorByMovement = modf((double)param[2].data / numOfPics.data, &stepsByPic);
+  double errorByMovement = modf((double)param[3].data / numOfPics.data, &stepsByPic);
   double stepperAccumError = 0;
   int stepCounter = 0;
 
@@ -372,8 +375,11 @@ void takePictures() {
     printProgressionInfo(stepCounter);
 
     //shoot camera
-    digitalWrite(SHUTTER_PIN, LOW);
+    digitalWrite(FOCUS_PIN, LOW);
     delay(param[0].data);
+    digitalWrite(FOCUS_PIN, HIGH);
+    digitalWrite(SHUTTER_PIN, LOW);
+    delay(param[1].data);
     digitalWrite(SHUTTER_PIN, HIGH);
 
     //move platform
@@ -394,7 +400,7 @@ void takePictures() {
 
   //return to origin
   if (platform != NULL)
-    platform->step(param[2].data - stepCounter);
+    platform->step(param[3].data - stepCounter);
 
   //disable coilA & coilB
   digitalWrite(COIL_A_PIN, LOW);
@@ -406,8 +412,8 @@ void takePictures() {
 
 void printProgressionInfo(int percent) {
   //compute
-  int percentBar = map(percent, 0, param[2].data, -1, 20);
-  int percentNumber = map(percent, 0, param[2].data, 0, 100);
+  int percentBar = map(percent, 0, param[3].data, -1, 20);
+  int percentNumber = map(percent, 0, param[3].data, 0, 100);
 
   if (newStateProgram) {
     newStateProgram = false;

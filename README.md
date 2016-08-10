@@ -1,6 +1,6 @@
 # Spin 360
 
-Get a ' _360 photography _' - also known as ' _360 spin_ ', ' _360 view_ ', ' _Spin Photography_ ' or ' _Product Spin_ ' - with a photographic technique by which a series of photos are taken of an object as it rotates one full revolution.
+Get a ' _360 photography_' - also known as ' _360 spin_ ', ' _360 view_ ', ' _Spin Photography_ ' or ' _Product Spin_ ' - with a photographic technique by which a series of photos are taken of an object as it rotates one full revolution.
 
 The purpose of **_Spin 360_** is to automate the process of obtaining the pictures, rotating a platform and shooting a camera in each platform position. In this way you will only need to choose the number of pictures that you desire and this project will do all the work.
 
@@ -22,13 +22,15 @@ The purpose of **_Spin 360_** is to automate the process of obtaining the pictur
 * 10k Ohm resistor x3
 * 1k Ohm resistor x2
 * 4N45 Optocoupler x2
+* 1 uF capacitor x2
 
 ## Dependencies
 
 > LiquidCrystal_I2C only is compatible with the Arduino 1.6.5 IDE Release, don't work in newest releases.
 
-**_Spin 360_** needs in addition to the libraries which come installed with the [Arduino IDE](https://www.arduino.cc/en/Main/Software), another library for working with the LCD Display connected to I2C:
+**_Spin 360_** needs in addition to the libraries which come installed with the [Arduino IDE](https://www.arduino.cc/en/Main/Software), another libraries for working with the LCD Display connected to I2C and the Rotary Encoder:
 *  [LiquidCrystal_I2C](https://github.com/marcoschwartz/LiquidCrystal_I2C) by @marcoschwartz ,you can find it with the _Library Manager_ of the  _Arduino IDE_
+*  [Encoder](http://www.pjrc.com/teensy/td_libs_Encoder.html) by Paul Stoffregen ,you can find it with the _Library Manager_ of the  _Arduino IDE_
 
 ## Arduino Schematic
 ![Connection Scheme](figures/arduino_schematic.png)
